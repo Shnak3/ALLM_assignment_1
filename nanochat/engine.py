@@ -13,6 +13,7 @@ The whole thing is made as efficient as possible.
 
 import torch
 import torch.nn.functional as F
+import os
 import signal
 import warnings
 from contextlib import contextmanager
@@ -24,13 +25,18 @@ from nanochat.checkpoint_manager import load_model
 # Calculator tool helpers
 @contextmanager
 def timeout(duration, formula):
+    if os.name == "nt":
+        yield
+        return
     def timeout_handler(signum, frame):
-        raise Exception(f"'{formula}': timed out after {duration} seconds")
+        raise TimeoutError(f"'{formula}': timed out after {duration} seconds")
 
     signal.signal(signal.SIGALRM, timeout_handler)
     signal.alarm(duration)
-    yield
-    signal.alarm(0)
+    try:
+        yield
+    finally:
+        signal.alarm(0)
 
 def eval_with_timeout(formula, max_time=3):
     try:
@@ -39,7 +45,6 @@ def eval_with_timeout(formula, max_time=3):
                 warnings.simplefilter("ignore", SyntaxWarning)
                 return eval(formula, {"__builtins__": {}}, {})
     except Exception as e:
-        signal.alarm(0)
         # print(f"Warning: Failed to eval {formula}, exception: {e}") # it's ok ignore wrong calculator usage
         return None
 
